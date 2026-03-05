@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .loader { border: 3px solid #f3f3f3; border-radius: 50%; border-top: 3px solid #3b82f6; width: 24px; height: 24px; animation: spin 1s linear infinite; } 
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="p-6 bg-slate-50 flex flex-col items-center justify-center min-h-screen">
+  <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-slate-200">
+    <h2 class="text-[11px] font-black mb-8 text-slate-400 uppercase tracking-widest text-center border-b pb-4">AJOUT FIREBASE</h2>
+    <form id="addForm" class="space-y-5">
+      <div>
+        <label class="text-[10px] font-bold text-slate-500 uppercase">Titre</label>
+        <input type="text" id="title" class="mt-1 block w-full border-b-2 border-slate-100 p-2 outline-none focus:border-blue-500 transition-all" required>
+      </div>
+      <div>
+        <label class="text-[10px] font-bold text-slate-500 uppercase">URL</label>
+        <input type="url" id="url" class="mt-1 block w-full border-b-2 border-slate-100 p-2 outline-none focus:border-blue-500 transition-all" required>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-[10px] font-bold text-slate-500 uppercase">Onglet</label>
+          <input type="text" id="tab" list="list-tabs" class="mt-1 block w-full border-b-2 border-slate-100 p-2 outline-none focus:border-blue-500 transition-all" required>
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-slate-500 uppercase">Catégorie</label>
+          <input type="text" id="category" list="list-cats" class="mt-1 block w-full border-b-2 border-slate-100 p-2 outline-none focus:border-blue-500 transition-all" required>
+        </div>
+      </div>
+      <button type="submit" id="btnSubmit" class="w-full bg-blue-600 text-white py-4 rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">Enregistrer</button>
+    </form>
+    <div id="msg" class="hidden"></div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = { /* VOTRE CONFIG ICI */ };
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    document.getElementById('addForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('btnSubmit');
+      btn.disabled = true;
+      btn.innerHTML = '<div class="loader mx-auto"></div>';
+
+      try {
+        await addDoc(collection(db, "bookmarks"), {
+          title: document.getElementById('title').value,
+          url: document.getElementById('url').value,
+          tab: document.getElementById('tab').value,
+          category: document.getElementById('category').value,
+          createdAt: new Date()
+        });
+        
+        document.getElementById('msg').innerText = "✅ AJOUTÉ !";
+        document.getElementById('msg').className = "mt-6 text-center text-[11px] font-bold text-green-600 block";
+        setTimeout(() => window.close(), 800);
+      } catch (err) {
+        alert("Erreur : " + err.message);
+        btn.disabled = false;
+        btn.innerHTML = "Enregistrer";
+      }
+    });
+  </script>
+</body>
+</html>
