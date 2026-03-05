@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MANAGER V41</title>
+  <title>MANAGER V43</title>
   <link rel="icon" type="image/png" href="bookmark-43-240.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
@@ -13,7 +13,6 @@
     .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Style V128 Header */
     #tabs-bar button.tab-btn { text-transform: uppercase; letter-spacing: 0.5px; font-size: 11px; font-weight: 700; padding: 10px 18px; border-radius: 8px 8px 0 0; margin-right: 2px; transition: 0.2s; white-space: nowrap; color: #64748b; background: #f1f5f9; cursor: pointer; border-bottom: 3px solid transparent; }
     .tab-active { border-bottom: 3px solid #2563eb !important; color: #2563eb !important; background: white !important; }
     
@@ -50,7 +49,7 @@
   <header class="bg-slate-900 text-white sticky top-0 z-50">
     <div class="max-w-[1600px] mx-auto px-4 py-3 flex justify-between items-center">
       <div class="flex items-center gap-4">
-          <h1 class="text-lg font-black tracking-tighter italic text-blue-400">V41</h1>
+          <h1 class="text-lg font-black tracking-tighter italic text-blue-400">V43</h1>
           <div id="sync-badge" class="sync-ok">SYNC: OK</div>
       </div>
 
@@ -95,18 +94,19 @@
     import { getFirestore, collection, onSnapshot, query, doc, setDoc, deleteDoc, updateDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
-  apiKey: "AIzaSyC6o44PrBjcE-0jy4HnXMavCdzvHG0es7w",
-  authDomain: "bookmark-1a4f4.firebaseapp.com",
-  projectId: "bookmark-1a4f4",
-  storageBucket: "bookmark-1a4f4.firebasestorage.app",
-  messagingSenderId: "791945118925",
-  appId: "1:791945118925:web:66ed56c79c5c8182d81584"
+      apiKey: "AIzaSyC6o44PrBjcE-0jy4HnXMavCdzvHG0es7w",
+      authDomain: "bookmark-1a4f4.firebaseapp.com",
+      projectId: "bookmark-1a4f4",
+      storageBucket: "bookmark-1a4f4.firebasestorage.app",
+      messagingSenderId: "791945118925",
+      appId: "1:791945118925:web:66ed56c79c5c8182d81584"
     };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     
-    let allBookmarks = [], configLayout = {}, currentTab = localStorage.getItem('lastTabV38') || "";
+    let allBookmarks = [], configLayout = { tabs: [], colMap: {}, items: {}, collapsed: {}, columnCount: 3 };
+    let currentTab = localStorage.getItem('lastTabV43') || "";
     let isEditing = false, sortableInstances = [];
     let selId = null, selCat = null, selTabName = null;
 
@@ -117,13 +117,23 @@
         else { b.innerText = "SYNC: OK"; b.className = "sync-ok"; }
     }
 
-    // --- ECOUTEURS FIREBASE ---
+    // Nettoyage récursif pour Firebase (supprime les undefined)
+    function cleanForFirebase(obj) {
+      return JSON.parse(JSON.stringify(obj, (key, value) => value === undefined ? null : value));
+    }
+
     onSnapshot(doc(db, "config", "layout"), (s) => { 
-        if(s.exists() && !isEditing) { configLayout = s.data(); refreshUI(); } 
+        if(s.exists() && !isEditing) { 
+            configLayout = { ...configLayout, ...s.data() }; 
+            refreshUI(); 
+        } 
     });
 
     onSnapshot(query(collection(db, "bookmarks")), (s) => { 
-        if(!isEditing) { allBookmarks = s.docs.map(d => ({id: d.id, ...d.data()})); refreshUI(); } 
+        if(!isEditing) { 
+            allBookmarks = s.docs.map(d => ({id: d.id, ...d.data()})); 
+            refreshUI(); 
+        } 
     });
 
     function refreshUI() {
@@ -147,7 +157,7 @@
       }});
     }
 
-    window.setTab = (t) => { currentTab = t; localStorage.setItem('lastTabV38', t); refreshUI(); };
+    window.setTab = (t) => { currentTab = t; localStorage.setItem('lastTabV43', t); refreshUI(); };
 
     function normalizeColAssignment(raw, count) {
       if (Array.isArray(raw)) return raw;
@@ -215,9 +225,9 @@
 
     async function saveCategoryOrder() {
       if(!currentTab) return;
-
       const count = configLayout.columnCount || 3;
       const key = `${currentTab}_${count}`;
+      
       if(!configLayout.colMap) configLayout.colMap = {};
 
       const cols = Array.from(document.querySelectorAll('.masonry-col')).map(col =>
@@ -227,11 +237,10 @@
 
       try {
         setSync('load');
-        const cleanLayout = JSON.parse(JSON.stringify(configLayout));
-        await setDoc(doc(db, "config", "layout"), cleanLayout, { merge: true });
+        await setDoc(doc(db, "config", "layout"), cleanForFirebase(configLayout), { merge: true });
         setSync('ok');
       } catch (e) {
-        console.error('Erreur sauvegarde ordre catégories :', e);
+        console.error('Erreur sauvegarde catégories:', e);
         setSync('err');
       }
     }
@@ -249,22 +258,24 @@
       });
       document.querySelectorAll('.items-container').forEach(el => {
         sortableInstances.push(new Sortable(el, { group: 'bookmarks', animation: 150, ghostClass: 'ghost', onEnd: async (evt) => {
-            if (!isEditing && evt.from !== evt.to) {
-                await updateDoc(doc(db, "bookmarks", evt.item.dataset.id), { category: evt.to.dataset.cat.toUpperCase() });
+            if (evt.from !== evt.to) {
+                try {
+                    setSync('load');
+                    await updateDoc(doc(db, "bookmarks", evt.item.dataset.id), { category: evt.to.dataset.cat.toUpperCase() });
+                    setSync('ok');
+                } catch(e) { setSync('err'); }
             }
         }}));
       });
     }
 
-    // --- MODE EDITION ---
     window.toggleEditMode = () => {
       isEditing = document.getElementById('edit-toggle').checked;
       document.body.classList.toggle('edit-mode', isEditing);
       document.getElementById('save-config-btn').classList.toggle('hidden', !isEditing);
-      if (!isEditing) location.reload();
+      if (!isEditing) refreshUI();
     };
 
-    // --- SAUVEGARDE ULTRA-ROBUSTE ---
     window.manualSave = async () => {
       setSync('load');
       const btn = document.getElementById('save-config-btn');
@@ -274,23 +285,18 @@
       const key = `${currentTab}_${count}`;
       
       try {
-        // 1. Scan des colonnes
         if(!configLayout.colMap) configLayout.colMap = {};
         const newCols = Array.from(document.querySelectorAll('.masonry-col')).map(col => 
             Array.from(col.querySelectorAll('.cat-card')).map(g => g.dataset.id)
         );
         configLayout.colMap[key] = serializeColAssignment(newCols);
 
-        // 2. Scan de l'ordre interne
         if(!configLayout.items) configLayout.items = {};
         document.querySelectorAll('.items-container').forEach(el => {
             configLayout.items[el.dataset.cat] = Array.from(el.querySelectorAll('.bookmark-item')).map(c => c.dataset.id);
         });
 
-        // 3. NETTOYAGE CRITIQUE : Supprimer les undefined et transformer en JSON pur
-        const cleanLayout = JSON.parse(JSON.stringify(configLayout));
-
-        await setDoc(doc(db, "config", "layout"), cleanLayout, { merge: true });
+        await setDoc(doc(db, "config", "layout"), cleanForFirebase(configLayout), { merge: true });
         
         btn.innerText = "✅ SAUVÉ";
         setTimeout(() => {
@@ -308,13 +314,12 @@
       }
     };
 
-    // --- ACTIONS ---
     window.toggleCollapse = async (cat) => {
         const k = (currentTab + '||' + cat).toUpperCase();
         if(!configLayout.collapsed) configLayout.collapsed = {};
         configLayout.collapsed[k] = !configLayout.collapsed[k];
         renderContent();
-        await setDoc(doc(db, "config", "layout"), configLayout, { merge: true });
+        await setDoc(doc(db, "config", "layout"), cleanForFirebase(configLayout), { merge: true });
     };
 
     window.globalCollapse = async (s) => {
@@ -322,7 +327,7 @@
         if(!configLayout.collapsed) configLayout.collapsed = {};
         cats.forEach(c => { configLayout.collapsed[(currentTab + '||' + c).toUpperCase()] = s; });
         renderContent();
-        await setDoc(doc(db, "config", "layout"), configLayout, { merge: true });
+        await setDoc(doc(db, "config", "layout"), cleanForFirebase(configLayout), { merge: true });
     };
 
     window.showTabMenu = (e, t) => { e.preventDefault(); e.stopPropagation(); selTabName = t; const m = document.getElementById('ctx-menu'); m.innerHTML = `<div class="px-3 py-1 text-[10px] font-bold text-slate-400 border-b mb-1 uppercase">${t}</div><div onclick="deleteCurrentTab()" class="cm-item text-red-500"><span>✕</span> SUPPRIMER</div>`; m.style.display = 'block'; m.style.left = e.pageX + 'px'; m.style.top = e.pageY + 'px'; };
@@ -332,13 +337,13 @@
     window.moveBookmarkTo = async (t, c) => { await updateDoc(doc(db, "bookmarks", selId), { tab: t, category: c }); hideMenus(); };
     window.moveCat = async (t) => { const batch = writeBatch(db); allBookmarks.filter(b => b.tab.toUpperCase() === currentTab && b.category.toUpperCase() === selCat).forEach(f => batch.update(doc(db, "bookmarks", f.id), { tab: t.toUpperCase() })); await batch.commit(); hideMenus(); };
     window.cmAction = async (a) => { if(a === 'delete' && confirm('SUPPRIMER ?')) await deleteDoc(doc(db, "bookmarks", selId)); if(a === 'rename') { const b = allBookmarks.find(x => x.id === selId); const n = prompt("NOM :", b.title); if(n) await updateDoc(doc(db, "bookmarks", selId), { title: n.trim() }); } hideMenus(); };
-    window.addNewTab = async () => { const n = prompt("NOM :"); if(n) { if(!configLayout.tabs) configLayout.tabs = []; configLayout.tabs.push(n.toUpperCase()); await setDoc(doc(db, "config", "layout"), configLayout, { merge: true }); setTab(n.toUpperCase()); } };
-    window.deleteCurrentTab = async () => { if(confirm("Supprimer l'onglet ?")) { const batch = writeBatch(db); allBookmarks.filter(b => b.tab.toUpperCase() === selTabName.toUpperCase()).forEach(f => batch.delete(doc(db, "bookmarks", f.id))); configLayout.tabs = configLayout.tabs.filter(t => t !== selTabName); await setDoc(doc(db, "config", "layout"), configLayout); refreshUI(); hideMenus(); } };
+    window.addNewTab = async () => { const n = prompt("NOM :"); if(n) { if(!configLayout.tabs) configLayout.tabs = []; configLayout.tabs.push(n.toUpperCase()); await setDoc(doc(db, "config", "layout"), cleanForFirebase(configLayout), { merge: true }); setTab(n.toUpperCase()); } };
+    window.deleteCurrentTab = async () => { if(confirm("Supprimer l'onglet ?")) { const batch = writeBatch(db); allBookmarks.filter(b => b.tab.toUpperCase() === selTabName.toUpperCase()).forEach(f => batch.delete(doc(db, "bookmarks", f.id))); configLayout.tabs = configLayout.tabs.filter(t => t !== selTabName); await setDoc(doc(db, "config", "layout"), cleanForFirebase(configLayout)); refreshUI(); hideMenus(); } };
     window.openAllInCategory = () => { allBookmarks.filter(b => b.tab.toUpperCase() === currentTab && b.category.toUpperCase() === selCat).forEach(f => window.open(f.url, '_blank')); hideMenus(); };
     
     function hideMenus() { document.getElementById('ctx-menu').style.display = 'none'; }
     document.addEventListener('click', hideMenus);
-    window.setColumns = async (c) => { configLayout.columnCount = c; renderContent(); await setDoc(doc(db, "config", "layout"), configLayout, { merge: true }); };
+    window.setColumns = async (c) => { configLayout.columnCount = c; renderContent(); await setDoc(doc(db, "config", "layout"), cleanForFirebase(configLayout), { merge: true }); };
     window.openAddModal = () => window.open('add.html', 'Ajout', 'width=450,height=650');
 
     document.getElementById('search').addEventListener('keyup', (e) => {
