@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MANAGER V44</title>
+  <title>MANAGER V45</title>
   <link rel="icon" type="image/png" href="bookmark-43-240.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
@@ -49,7 +49,7 @@
   <header class="bg-slate-900 text-white sticky top-0 z-50">
     <div class="max-w-[1600px] mx-auto px-4 py-3 flex justify-between items-center">
       <div class="flex items-center gap-4">
-          <h1 class="text-lg font-black tracking-tighter italic text-blue-400">MANAGER V44</h1>
+          <h1 class="text-lg font-black tracking-tighter italic text-blue-400">MANAGER V45</h1>
           <div id="sync-badge" class="sync-ok">SYNC: OK</div>
       </div>
 
@@ -245,31 +245,21 @@
           onEnd: async (evt) => {
             setSync('load');
             try {
-                // 1. Si changement de catégorie, on met à jour le document Firestore du favori
                 if (evt.from !== evt.to) {
                     await updateDoc(doc(db, "bookmarks", evt.item.dataset.id), { 
                         category: evt.to.dataset.cat.toUpperCase() 
                     });
                 }
-                
-                // 2. On met à jour l'ordre dans l'objet global configLayout
                 if(!configLayout.items) configLayout.items = {};
-                
                 const updateCatOrder = (container) => {
                     const catName = container.dataset.cat;
                     configLayout.items[catName] = Array.from(container.querySelectorAll('.bookmark-item')).map(i => i.dataset.id);
                 };
-
                 updateCatOrder(evt.from);
                 if (evt.from !== evt.to) updateCatOrder(evt.to);
-
-                // 3. On synchronise l'ordre complet avec Firestore
                 await setDoc(doc(db, "config", "layout"), { items: configLayout.items }, { merge: true });
                 setSync('ok');
-            } catch (e) {
-                console.error(e);
-                setSync('err');
-            }
+            } catch (e) { console.error(e); setSync('err'); }
           }
         }));
       });
@@ -326,11 +316,32 @@
         await setDoc(doc(db, "config", "layout"), { collapsed: configLayout.collapsed }, { merge: true });
     };
 
-    window.showTabMenu = (e, t) => { e.preventDefault(); e.stopPropagation(); selTabName = t; const m = document.getElementById('ctx-menu'); m.innerHTML = `<div class="px-3 py-1 text-[10px] font-bold text-slate-400 border-b mb-1 uppercase">${t}</div><div onclick="deleteCurrentTab()" class="cm-item text-red-500"><span>✕</span> SUPPRIMER</div>`; m.style.display = 'block'; m.style.left = e.pageX + 'px'; m.style.top = e.pageY + 'px'; };
+    function showMenu(e, html) {
+        e.preventDefault();
+        e.stopPropagation();
+        const m = document.getElementById('ctx-menu');
+        m.innerHTML = html;
+        m.style.display = 'block';
+        
+        let x = e.clientX;
+        let y = e.clientY;
+        const menuWidth = 220;
+        const menuHeight = 300; // Estimation
+        
+        if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 10;
+        if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 10;
+        
+        m.style.left = x + 'px';
+        m.style.top = y + 'px';
+    }
+
+    window.showTabMenu = (e, t) => { 
+        selTabName = t;
+        showMenu(e, `<div class="px-3 py-1 text-[10px] font-bold text-slate-400 border-b mb-1 uppercase">${t}</div><div onclick="deleteCurrentTab()" class="cm-item text-red-500"><span>✕</span> SUPPRIMER</div>`);
+    };
     
     window.showBookMenu = (e, id, t) => { 
-        e.preventDefault(); e.stopPropagation(); selId = id; 
-        const m = document.getElementById('ctx-menu'); 
+        selId = id; 
         let h = `<div class="px-3 py-1 text-[10px] font-bold text-slate-400 border-b mb-1 uppercase truncate">${t}</div>
                  <div onclick="cmAction('rename')" class="cm-item"><span>✎</span> RENOMMER</div>
                  <div onclick="cmAction('delete')" class="cm-item text-red-500"><span>✕</span> SUPPRIMER</div>
@@ -341,11 +352,15 @@
             h += `<div class="px-3 py-1 text-[9px] font-black bg-slate-50 text-slate-400 uppercase">${tab}</div>`; 
             cats.forEach(c => h += `<div onclick="moveBookmarkTo('${tab}','${c}')" class="px-4 py-1.5 hover:bg-blue-50 text-[11px] font-bold text-slate-600 cursor-pointer border-b">↳ ${c}</div>`); 
         }); 
-        m.innerHTML = h + `</div></div>`; 
-        m.style.display = 'block'; m.style.left = e.pageX + 'px'; m.style.top = e.pageY + 'px'; 
+        showMenu(e, h + `</div></div>`);
     };
 
-    window.showCatMenu = (e, c) => { e.preventDefault(); e.stopPropagation(); selCat = c; const m = document.getElementById('ctx-menu'); let h = `<div class="px-3 py-1 text-[10px] font-bold text-slate-400 border-b mb-1 uppercase">${c}</div><div onclick="openAllInCategory()" class="cm-item text-blue-600"><span>🌍</span> OUVRIR TOUT</div><div class="cm-item cm-has-sub"><span>➡</span> DÉPLACER VERS ONGLETS...<div class="cm-submenu">`; (configLayout.tabs || []).forEach(t => h += `<div onclick="moveCat('${t}')" class="px-4 py-1.5 hover:bg-blue-50 text-[11px] font-bold text-slate-600 cursor-pointer border-b">${t}</div>`); m.innerHTML = h + `</div></div>`; m.style.display = 'block'; m.style.left = e.pageX + 'px'; m.style.top = e.pageY + 'px'; };
+    window.showCatMenu = (e, c) => { 
+        selCat = c; 
+        let h = `<div class="px-3 py-1 text-[10px] font-bold text-slate-400 border-b mb-1 uppercase">${c}</div><div onclick="openAllInCategory()" class="cm-item text-blue-600"><span>🌍</span> OUVRIR TOUT</div><div class="cm-item cm-has-sub"><span>➡</span> DÉPLACER VERS ONGLETS...<div class="cm-submenu">`; 
+        (configLayout.tabs || []).forEach(t => h += `<div onclick="moveCat('${t}')" class="px-4 py-1.5 hover:bg-blue-50 text-[11px] font-bold text-slate-600 cursor-pointer border-b">${t}</div>`); 
+        showMenu(e, h + `</div></div>`);
+    };
 
     window.moveBookmarkTo = async (t, c) => { await updateDoc(doc(db, "bookmarks", selId), { tab: t, category: c }); hideMenus(); };
     window.moveCat = async (t) => { const batch = writeBatch(db); allBookmarks.filter(b => b.tab.toUpperCase() === currentTab && b.category.toUpperCase() === selCat).forEach(f => batch.update(doc(db, "bookmarks", f.id), { tab: t.toUpperCase() })); await batch.commit(); hideMenus(); };
