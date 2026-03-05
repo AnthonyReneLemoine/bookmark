@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>AJOUT V46</title>
+  <title>AJOUT V47</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     .loader { border: 3px solid #f3f3f3; border-radius: 50%; border-top: 3px solid #3b82f6; width: 24px; height: 24px; animation: spin 1s linear infinite; } 
@@ -11,7 +11,7 @@
 </head>
 <body class="p-6 bg-slate-50 flex flex-col items-center justify-center min-h-screen">
   <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-slate-200">
-    <h2 class="text-[11px] font-black mb-8 text-slate-400 uppercase tracking-widest text-center border-b pb-4">AJOUT FIREBASE V46</h2>
+    <h2 class="text-[11px] font-black mb-8 text-slate-400 uppercase tracking-widest text-center border-b pb-4">AJOUT FIREBASE V47</h2>
     <form id="addForm" class="space-y-5">
       <div>
         <label class="text-[10px] font-bold text-slate-500 uppercase">Titre</label>
@@ -29,7 +29,7 @@
         </div>
         <div>
           <label class="text-[10px] font-bold text-slate-500 uppercase">Catégorie</label>
-          <input type="text" id="category" list="list-cats" class="mt-1 block w-full border-b-2 border-slate-100 p-2 outline-none focus:border-blue-500 transition-all" required>
+          <input type="text" id="category" list="list-cats" class="mt-1 block w-full border-b-2 border-slate-100 p-2 outline-none focus:border-blue-500 transition-all" required autofocus>
           <datalist id="list-cats"></datalist>
         </div>
       </div>
@@ -54,20 +54,24 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // Récupération du paramètre d'onglet dans l'URL
     const urlParams = new URLSearchParams(window.location.search);
+    
+    // Pré-remplissage via URL (Bookmarklet)
     const defaultTab = urlParams.get('tab');
     if (defaultTab) document.getElementById('tab').value = defaultTab.toUpperCase();
+    
+    const defaultTitle = urlParams.get('title');
+    if (defaultTitle) document.getElementById('title').value = defaultTitle;
+    
+    const defaultUrl = urlParams.get('url');
+    if (defaultUrl) document.getElementById('url').value = defaultUrl;
 
-    // Remplissage des datalists (suggestions)
     async function loadSuggestions() {
       const q = query(collection(db, "bookmarks"));
       const snapshot = await getDocs(q);
       const bookmarks = snapshot.docs.map(doc => doc.data());
-      
       const tabs = [...new Set(bookmarks.map(b => b.tab.toUpperCase()))].sort();
       const cats = [...new Set(bookmarks.map(b => b.category.toUpperCase()))].sort();
-
       document.getElementById('list-tabs').innerHTML = tabs.map(t => `<option value="${t}">`).join('');
       document.getElementById('list-cats').innerHTML = cats.map(c => `<option value="${c}">`).join('');
     }
@@ -79,7 +83,6 @@
       const btn = document.getElementById('btnSubmit');
       btn.disabled = true;
       btn.innerHTML = '<div class="loader mx-auto"></div>';
-
       try {
         await addDoc(collection(db, "bookmarks"), {
           title: document.getElementById('title').value.trim(),
@@ -88,7 +91,6 @@
           category: document.getElementById('category').value.toUpperCase().trim(),
           createdAt: new Date()
         });
-        
         document.getElementById('msg').innerText = "✅ AJOUTÉ !";
         document.getElementById('msg').className = "mt-6 text-center text-[11px] font-bold text-green-600 block";
         setTimeout(() => window.close(), 800);
