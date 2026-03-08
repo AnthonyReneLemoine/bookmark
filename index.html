@@ -49,6 +49,29 @@
     .ghost { opacity: 0.1; background: #3b82f6 !important; border: 1px dashed #3b82f6 !important; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
 
+    /* ── LOGIN SCREEN ── */
+    #login-screen { position: fixed; inset: 0; background: #0f172a; z-index: 200; display: flex; align-items: center; justify-content: center; }
+    #login-box { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 40px 36px; width: 100%; max-width: 380px; box-shadow: 0 25px 60px rgba(0,0,0,0.5); }
+    #login-box h2 { font-size: 22px; font-weight: 900; color: #60a5fa; letter-spacing: -0.5px; margin-bottom: 6px; font-style: italic; }
+    #login-box p { font-size: 12px; color: #64748b; margin-bottom: 28px; }
+    .login-field { width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px 14px; color: white; font-size: 14px; outline: none; transition: border-color 0.2s; box-sizing: border-box; margin-bottom: 12px; }
+    .login-field:focus { border-color: #3b82f6; }
+    .login-field::placeholder { color: #475569; }
+    #login-btn { width: 100%; background: #2563eb; color: white; font-weight: 800; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; padding: 13px; border-radius: 8px; border: none; cursor: pointer; transition: background 0.2s; margin-top: 6px; }
+    #login-btn:hover { background: #1d4ed8; }
+    #login-btn:disabled { background: #1e3a5f; color: #64748b; cursor: not-allowed; }
+    #login-error { color: #f87171; font-size: 12px; margin-top: 10px; min-height: 18px; text-align: center; }
+    /* Logout button in header */
+    #logout-btn { font-size: 10px; font-weight: 700; color: #64748b; background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: color 0.2s; text-transform: uppercase; }
+    #logout-btn:hover { color: #f87171; }
+    .add-tab-btn { padding: 8px 14px; font-size: 18px; font-weight: 700; color: #94a3b8; cursor: pointer; background: none; border: none; line-height: 1; transition: color 0.15s; flex-shrink: 0; }
+    .add-tab-btn:hover, .add-tab-btn:active { color: #2563eb; }
+    #plus-menu { position: fixed; z-index: 1000; width: 220px; background: white; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15); padding: 6px; display: none; }
+    #plus-menu .pm-title { padding: 6px 12px 8px; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #f1f5f9; margin-bottom: 4px; }
+    #plus-menu .pm-item { padding: 11px 14px; border-radius: 7px; cursor: pointer; font-size: 13px; color: #334155; display: flex; align-items: center; gap: 10px; font-weight: 600; }
+    #plus-menu .pm-item:hover, #plus-menu .pm-item:active { background: #eff6ff; color: #2563eb; }
+    #plus-menu .pm-item .pm-icon { font-size: 15px; width: 20px; text-align: center; }
+
     /* ─── HEADER RESPONSIVE ─── */
     /* Mobile: stack controls */
     @media (max-width: 640px) {
@@ -92,6 +115,18 @@
 </head>
 <body>
 
+  <!-- LOGIN SCREEN -->
+  <div id="login-screen">
+    <div id="login-box">
+      <h2>MANAGER V46</h2>
+      <p>Connexion requise pour accéder à l'application.</p>
+      <input id="login-email" class="login-field" type="email" placeholder="Email" autocomplete="username">
+      <input id="login-password" class="login-field" type="password" placeholder="Mot de passe" autocomplete="current-password">
+      <button id="login-btn" onclick="doLogin()">Se connecter</button>
+      <div id="login-error"></div>
+    </div>
+  </div>
+
   <div id="initial-loader"><div class="spinner"></div></div>
 
   <header class="bg-slate-900 text-white sticky top-0 z-50">
@@ -101,6 +136,7 @@
       <div class="flex items-center gap-3 shrink-0">
         <h1 class="text-base font-black tracking-tighter italic text-blue-400">MANAGER V46</h1>
         <div id="sync-badge" class="sync-ok">SYNC: OK</div>
+        <button id="logout-btn" onclick="doLogout()" title="Déconnexion">⏻ QUITTER</button>
       </div>
 
       <!-- CENTER: controls (hidden on mobile except edit toggle) -->
@@ -143,11 +179,18 @@
     <div id="main-content" class="flex gap-6 justify-center"></div>
   </main>
 
+  <div id="plus-menu">
+    <div class="pm-title">Ajouter…</div>
+    <div class="pm-item" onclick="doAddTab()"><span class="pm-icon">🗂️</span> Nouvel onglet</div>
+    <div class="pm-item" onclick="doAddCategory()"><span class="pm-icon">📁</span> Catégorie dans <span id="pm-tab-name" class="ml-1 text-blue-600 truncate max-w-[90px]"></span></div>
+  </div>
+
   <div id="ctx-menu" class="ctx-menu"></div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, onSnapshot, query, doc, setDoc, deleteDoc, updateDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyC6o44PrBjcE-0jy4HnXMavCdzvHG0es7w",
@@ -160,10 +203,70 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    
+    const auth = getAuth(app);
+
     let allBookmarks = [], configLayout = {}, currentTab = localStorage.getItem('lastTab') || "";
     let isEditing = false, sortableInstances = [];
     let selId = null, selCat = null, selTabName = null;
+    let unsubLayout = null, unsubBookmarks = null;
+
+    // ── AUTH STATE ──────────────────────────────────────────────────────
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            document.getElementById('login-screen').style.display = 'none';
+            startFirestoreListeners();
+        } else {
+            document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('initial-loader').style.display = 'none';
+            stopFirestoreListeners();
+            // Clear UI
+            document.getElementById('main-content').innerHTML = '';
+            document.getElementById('tabs-bar').innerHTML = '';
+        }
+    });
+
+    function startFirestoreListeners() {
+        unsubLayout = onSnapshot(doc(db, "config", "layout"), (s) => {
+            if (s.exists() && !isEditing) { configLayout = s.data(); refreshUI(); }
+        });
+        unsubBookmarks = onSnapshot(query(collection(db, "bookmarks")), (s) => {
+            if (!isEditing) { allBookmarks = s.docs.map(d => ({id: d.id, ...d.data()})); refreshUI(); }
+        });
+    }
+
+    function stopFirestoreListeners() {
+        if (unsubLayout) { unsubLayout(); unsubLayout = null; }
+        if (unsubBookmarks) { unsubBookmarks(); unsubBookmarks = null; }
+        allBookmarks = []; configLayout = {};
+    }
+
+    window.doLogin = async () => {
+        const email = document.getElementById('login-email').value.trim();
+        const pwd = document.getElementById('login-password').value;
+        const btn = document.getElementById('login-btn');
+        const err = document.getElementById('login-error');
+        err.textContent = '';
+        if (!email || !pwd) { err.textContent = 'Email et mot de passe requis.'; return; }
+        btn.disabled = true; btn.textContent = 'Connexion…';
+        try {
+            await signInWithEmailAndPassword(auth, email, pwd);
+            document.getElementById('login-password').value = '';
+        } catch(e) {
+            const msgs = { 'auth/invalid-credential': 'Email ou mot de passe incorrect.', 'auth/user-not-found': 'Utilisateur inconnu.', 'auth/wrong-password': 'Mot de passe incorrect.', 'auth/too-many-requests': 'Trop de tentatives. Réessayez plus tard.' };
+            err.textContent = msgs[e.code] || 'Erreur de connexion.';
+        } finally {
+            btn.disabled = false; btn.textContent = 'Se connecter';
+        }
+    };
+
+    window.doLogout = async () => {
+        if (confirm('Se déconnecter ?')) await signOut(auth);
+    };
+
+    // Enter key on login fields
+    ['login-email','login-password'].forEach(id => {
+        document.getElementById(id).addEventListener('keydown', e => { if(e.key === 'Enter') doLogin(); });
+    });
 
     function setSync(state) {
         const b = document.getElementById('sync-badge');
@@ -171,14 +274,6 @@
         else if(state === 'err') { b.innerText = "ERREUR"; b.className = "sync-err"; }
         else { b.innerText = "SYNC: OK"; b.className = "sync-ok"; }
     }
-
-    onSnapshot(doc(db, "config", "layout"), (s) => { 
-        if(s.exists() && !isEditing) { configLayout = s.data(); refreshUI(); } 
-    });
-
-    onSnapshot(query(collection(db, "bookmarks")), (s) => { 
-        if(!isEditing) { allBookmarks = s.docs.map(d => ({id: d.id, ...d.data()})); refreshUI(); } 
-    });
 
     function refreshUI() {
       const rawTabs = [...new Set(allBookmarks.map(b => b.tab.toUpperCase()))];
@@ -193,7 +288,7 @@
 
     function renderTabs(tabs) {
       const bar = document.getElementById('tabs-bar');
-      bar.innerHTML = tabs.map(t => `<button data-id="${t}" onclick="setTab('${t}')" oncontextmenu="showTabMenu(event, '${t}')" class="tab-btn ${t === currentTab ? 'tab-active' : ''}">${t}</button>`).join('') + `<button onclick="addNewTab()" class="add-tab-btn">+</button>`;
+      bar.innerHTML = tabs.map(t => `<button data-id="${t}" onclick="setTab('${t}')" oncontextmenu="showTabMenu(event, '${t}')" class="tab-btn ${t === currentTab ? 'tab-active' : ''}">${t}</button>`).join('') + `<button onclick="openPlusMenu(this)" class="add-tab-btn" title="Ajouter un onglet ou une catégorie">＋</button>`;
       
       new Sortable(bar, { animation: 150, draggable: '.tab-btn', onEnd: () => {
         configLayout.tabs = Array.from(bar.querySelectorAll('.tab-btn')).map(btn => btn.dataset.id);
@@ -444,7 +539,55 @@
         hideMenus(); 
     };
 
-    window.addNewTab = async () => { const n = prompt("NOM :"); if(n) { if(!configLayout.tabs) configLayout.tabs = []; configLayout.tabs.push(n.toUpperCase()); await setDoc(doc(db, "config", "layout"), { tabs: configLayout.tabs }, { merge: true }); setTab(n.toUpperCase()); } };
+    window.openPlusMenu = (btn) => {
+        const m = document.getElementById('plus-menu');
+        document.getElementById('pm-tab-name').textContent = currentTab || '—';
+        const rect = btn.getBoundingClientRect();
+        m.style.display = 'block';
+        // Position below the + button
+        let x = rect.left;
+        let y = rect.bottom + 4;
+        if (x + 220 > window.innerWidth) x = window.innerWidth - 228;
+        m.style.left = x + 'px';
+        m.style.top = y + 'px';
+    };
+
+    window.doAddTab = async () => {
+        hidePlusMenu();
+        const n = prompt("Nom du nouvel onglet :");
+        if (!n || !n.trim()) return;
+        if (!configLayout.tabs) configLayout.tabs = [];
+        configLayout.tabs.push(n.trim().toUpperCase());
+        await setDoc(doc(db, "config", "layout"), { tabs: configLayout.tabs }, { merge: true });
+        setTab(n.trim().toUpperCase());
+    };
+
+    window.doAddCategory = async () => {
+        hidePlusMenu();
+        if (!currentTab) { alert("Aucun onglet ouvert."); return; }
+        const n = prompt(`Nom de la nouvelle catégorie dans « ${currentTab} » :`);
+        if (!n || !n.trim()) return;
+        const catName = n.trim().toUpperCase();
+        // Create a placeholder bookmark to materialise the category, then delete it after render
+        // Better: just add a separator bookmark tagged to this cat so the cat appears
+        setSync('load');
+        try {
+            await setDoc(doc(collection(db, "bookmarks")), {
+                title: "---------------",
+                url: "https://separator",
+                tab: currentTab,
+                category: catName
+            });
+            setSync('ok');
+        } catch(e) { setSync('err'); }
+    };
+
+    function hidePlusMenu() { document.getElementById('plus-menu').style.display = 'none'; }
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#plus-menu') && !e.target.closest('.add-tab-btn')) hidePlusMenu();
+    });
+
+    window.addNewTab = window.doAddTab; // legacy alias
     window.deleteCurrentTab = async () => { if(confirm("Supprimer l'onglet ?")) { const batch = writeBatch(db); allBookmarks.filter(b => b.tab.toUpperCase() === selTabName.toUpperCase()).forEach(f => batch.delete(doc(db, "bookmarks", f.id))); configLayout.tabs = configLayout.tabs.filter(t => t !== selTabName); await setDoc(doc(db, "config", "layout"), { tabs: configLayout.tabs }); refreshUI(); hideMenus(); } };
     window.openAllInCategory = () => { allBookmarks.filter(b => b.tab.toUpperCase() === currentTab && b.category.toUpperCase() === selCat).forEach(f => window.open(f.url, '_blank')); hideMenus(); };
     
