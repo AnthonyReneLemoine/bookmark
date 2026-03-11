@@ -530,15 +530,18 @@
                 Object.values(configLayout.colMap).forEach(colEntry => {
                     if (typeof colEntry === 'object') {
                         Object.keys(colEntry).forEach(k => {
-                            if (Array.isArray(colEntry[k]))
-                                colEntry[k] = colEntry[k].map(c => c === selCat ? newCat : c);
+                            if (Array.isArray(colEntry[k])) {
+                                const renamed = colEntry[k].map(c => c === selCat ? newCat : c);
+                                colEntry[k] = [...new Set(renamed)];
+                            }
                         });
                     }
                 });
             }
 
             if (configLayout.items?.[selCat] !== undefined) {
-                configLayout.items[newCat] = configLayout.items[selCat];
+                const existingOrder = configLayout.items[newCat] || [];
+                configLayout.items[newCat] = [...new Set([...existingOrder, ...configLayout.items[selCat]])];
                 delete configLayout.items[selCat];
             }
 
