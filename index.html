@@ -506,11 +506,54 @@
         showMenu(e, h + `</div></div>`);
     };
 
-    window.showCatMenu = (e, c) => { 
-        selCat = c; 
-        let h = `<div class="px-3 py-1 text-[10px] font-bold text-slate-400 border-b mb-1 uppercase">${c}</div><div onclick="openAllInCategory()" class="cm-item text-blue-600"><span>🌍</span> OUVRIR TOUT</div><div class="cm-item cm-has-sub"><span>➡</span> DÉPLACER VERS ONGLETS...<div class="cm-submenu">`; 
-        (configLayout.tabs || []).forEach(t => h += `<div onclick="moveCat('${t}')" class="px-4 py-1.5 hover:bg-blue-50 text-[11px] font-bold text-slate-600 cursor-pointer border-b">${t}</div>`); 
+    window.showCatMenu = (e, c) => {
+        selCat = c;
+        let h = `<div class="px-3 py-1 text-[10px] font-bold text-slate-400 border-b mb-1 uppercase">${c}</div><div onclick="openAllInCategory()" class="cm-item text-blue-600"><span>🌍</span> OUVRIR TOUT</div><div onclick="renameCategory()" class="cm-item"><span>✎</span> RENOMMER</div><div class="cm-item cm-has-sub"><span>➡</span> DÉPLACER VERS ONGLETS...<div class="cm-submenu">`;
+        (configLayout.tabs || []).forEach(t => h += `<div onclick="moveCat('${t}')" class="px-4 py-1.5 hover:bg-blue-50 text-[11px] font-bold text-slate-600 cursor-pointer border-b">${t}</div>`);
         showMenu(e, h + `</div></div>`);
+    };
+
+    window.renameCategory = async () => {
+        hideMenus();
+        const newName = prompt(`Renommer la catégorie « ${selCat} » :`, selCat);
+        if (!newName || !newName.trim() || newName.trim().toUpperCase() === selCat) return;
+        const newCat = newName.trim().toUpperCase();
+        setSync('load');
+        try {
+            const batch = writeBatch(db);
+            allBookmarks
+                .filter(b => b.tab.toUpperCase() === currentTab && b.category.toUpperCase() === selCat)
+                .forEach(b => batch.update(doc(db, "bookmarks", b.id), { category: newCat }));
+            await batch.commit();
+
+            if (configLayout.colMap) {
+                Object.values(configLayout.colMap).forEach(colEntry => {
+                    if (typeof colEntry === 'object') {
+                        Object.keys(colEntry).forEach(k => {
+                            if (Array.isArray(colEntry[k]))
+                                colEntry[k] = colEntry[k].map(c => c === selCat ? newCat : c);
+                        });
+                    }
+                });
+            }
+
+            if (configLayout.items?.[selCat] !== undefined) {
+                configLayout.items[newCat] = configLayout.items[selCat];
+                delete configLayout.items[selCat];
+            }
+
+            if (configLayout.collapsed) {
+                const oldKey = (currentTab + '||' + selCat).toUpperCase();
+                const newKey = (currentTab + '||' + newCat).toUpperCase();
+                if (configLayout.collapsed[oldKey] !== undefined) {
+                    configLayout.collapsed[newKey] = configLayout.collapsed[oldKey];
+                    delete configLayout.collapsed[oldKey];
+                }
+            }
+
+            await setDoc(doc(db, "config", "layout"), configLayout);
+            setSync('ok');
+        } catch (e) { console.error(e); setSync('err'); }
     };
 
     window.moveBookmarkTo = async (t, c) => { await updateDoc(doc(db, "bookmarks", selId), { tab: t, category: c }); hideMenus(); };
