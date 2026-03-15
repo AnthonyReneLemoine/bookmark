@@ -290,10 +290,12 @@
       const bar = document.getElementById('tabs-bar');
       bar.innerHTML = tabs.map(t => `<button data-id="${t}" onclick="setTab('${t}')" oncontextmenu="showTabMenu(event, '${t}')" class="tab-btn ${t === currentTab ? 'tab-active' : ''}">${t}</button>`).join('') + `<button onclick="openPlusMenu(this)" class="add-tab-btn" title="Ajouter un onglet ou une catégorie">＋</button>`;
       
-      new Sortable(bar, { animation: 150, draggable: '.tab-btn', onEnd: () => {
-        configLayout.tabs = Array.from(bar.querySelectorAll('.tab-btn')).map(btn => btn.dataset.id);
-        manualSave(); 
-      }});
+      if (isEditing) {
+        new Sortable(bar, { animation: 150, draggable: '.tab-btn', onEnd: () => {
+          configLayout.tabs = Array.from(bar.querySelectorAll('.tab-btn')).map(btn => btn.dataset.id);
+          manualSave(); 
+        }});
+      }
     }
 
     window.setTab = (t) => { currentTab = t; localStorage.setItem('lastTab', t); refreshUI(); };
@@ -395,6 +397,9 @@
     }
 
     function initSortables() {
+      // Ne jamais activer le drag&drop si on n'est pas en mode édition
+      if (!isEditing) return;
+
       document.querySelectorAll('.masonry-col').forEach(el => {
         sortableInstances.push(new Sortable(el, {
           group: 'categories', animation: 150, handle: '.cat-header', ghostClass: 'ghost', forceFallback: true,
@@ -404,7 +409,7 @@
 
       document.querySelectorAll('.items-container').forEach(el => {
         sortableInstances.push(new Sortable(el, { 
-          group: 'bookmarks', animation: 150, ghostClass: 'ghost', 
+          group: 'bookmarks', animation: 150, ghostClass: 'ghost', forceFallback: true,
           onEnd: async (evt) => {
             setSync('load');
             try {
@@ -432,7 +437,10 @@
       isEditing = document.getElementById('edit-toggle').checked;
       document.body.classList.toggle('edit-mode', isEditing);
       document.getElementById('save-config-btn').classList.toggle('hidden', !isEditing);
-      if (!isEditing) refreshUI();
+      // Toujours rafraîchir pour activer/désactiver les Sortables selon le mode
+      sortableInstances.forEach(i => i.destroy());
+      sortableInstances = [];
+      refreshUI();
     };
 
     window.manualSave = async () => {
