@@ -209,6 +209,7 @@
     let isEditing = false, sortableInstances = [];
     let selId = null, selCat = null, selTabName = null;
     let unsubLayout = null, unsubBookmarks = null;
+    let layoutLoaded = false, bookmarksLoaded = false;
 
     // ── AUTH STATE ──────────────────────────────────────────────────────
     onAuthStateChanged(auth, (user) => {
@@ -226,11 +227,12 @@
     });
 
     function startFirestoreListeners() {
+        layoutLoaded = false; bookmarksLoaded = false;
         unsubLayout = onSnapshot(doc(db, "config", "layout"), (s) => {
-            if (s.exists() && !isEditing) { configLayout = s.data(); refreshUI(); }
+            if (s.exists() && !isEditing) { configLayout = s.data(); layoutLoaded = true; if (bookmarksLoaded) refreshUI(); }
         });
         unsubBookmarks = onSnapshot(query(collection(db, "bookmarks")), (s) => {
-            if (!isEditing) { allBookmarks = s.docs.map(d => ({id: d.id, ...d.data()})); refreshUI(); }
+            if (!isEditing) { allBookmarks = s.docs.map(d => ({id: d.id, ...d.data()})); bookmarksLoaded = true; if (layoutLoaded) refreshUI(); }
         });
     }
 
@@ -238,6 +240,7 @@
         if (unsubLayout) { unsubLayout(); unsubLayout = null; }
         if (unsubBookmarks) { unsubBookmarks(); unsubBookmarks = null; }
         allBookmarks = []; configLayout = {};
+        layoutLoaded = false; bookmarksLoaded = false;
     }
 
     window.doLogin = async () => {
@@ -343,7 +346,9 @@
 
       colAssignment = sanitizeColAssignment(colAssignment, groupsMap);
       configLayout.colMap = configLayout.colMap || {};
-      configLayout.colMap[key] = serializeColAssignment(colAssignment);
+      if (Object.keys(groupsMap).length > 0) {
+          configLayout.colMap[key] = serializeColAssignment(colAssignment);
+      }
 
       colAssignment.forEach((cats, i) => {
           const colDiv = document.createElement('div');
